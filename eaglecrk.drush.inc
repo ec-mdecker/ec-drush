@@ -36,53 +36,68 @@ function eaglecrk_drush_command() {
 }
 
 function drush_eaglecrk_ec_test() {
-
+  $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
+  drush_print($git);
 }
 
 function drush_eaglecrk_config() {
+  $db_user_cache = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
+  $db_pass_cache = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
+  $mysql_cache = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
+  $git_cache = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
+  $httpd_conf_cache = drush_cache_get('eaglecrk-httpd-conf', 'pantheon-persist')->data;
+  $port_cache = drush_cache_get('eaglecrk-port', 'pantheon-persist')->data;
+
+
   $options = array('Lamp', 'WAMP/XAMP', 'Other');
   $local_env = drush_choice($options, 'What is your local environment?');
 
   drush_print(dt('Enter the directory desired for site files.'));
-  $git = str_replace('\\', '/', drush_prompt(dt(''), NULL, TRUE));
+  $git = str_replace('\\', '/', drush_prompt(dt(''), $git_cache, TRUE));
   while (!file_exists($git)) {
-    $git = str_replace('\\', '/', drush_prompt('', NULL, TRUE));
+    $git = str_replace('\\', '/', drush_prompt('', $git_cache, TRUE));
   }
+  if (substr($git, strlen($git) - 1) == '/') {
+    $git = substr($git, 0, strlen($git) - 1);
+  }
+
 
   switch ($local_env) {
     case 0:
-      $db_user = drush_prompt(dt('Username for the database.'), NULL, FALSE);
-      if (is_null($db_user)) {
-        $db_user = 'root';
+      $db_user = drush_prompt(dt('Username for the database.'), is_null($db_user_cache) ? 'root' : $db_user_cache, FALSE);
+      $db_pass = drush_prompt(dt('Password for the database.'), is_null($db_pass_cache) ? '' : $db_pass_cache, FALSE, TRUE);
+      
+      $file_proxy = drush_choice(array(
+        'No',
+        'Yes'
+      ), dt('Use "Stage File Proxy" odule'));
+      $port = drush_prompt(dt('Port Number'), 80, FALSE, FALSE);
+      break;
+    case 1:
+      $db_user = drush_prompt(dt('Username for the database.'), is_null($db_user_cache) ? 'root' : $db_user_cache, FALSE);
+      $db_pass = drush_prompt(dt('Password for the database.'), is_null($db_pass_cache) ? '' : $db_pass_cache, FALSE, TRUE);
+
+      drush_print('Enter the directory for your mysql. This folder must contain a mysql.exe file.');
+      $mysql = str_replace('\\', '/', drush_prompt(dt(''), $mysql_cache, TRUE));
+      while (!file_exists($mysql . '/mysql.exe')) {
+        $mysql = str_replace('\\', '/', drush_prompt('', $mysql_cache, TRUE));
       }
-      $db_user = drush_prompt(dt('Password for the database.'), NULL, FALSE);
-      if (is_null($db_user)) {
-        $db_user = 'root';
+      if (substr($mysql, strlen($mysql) - 1) == '/') {
+        $mysql = substr($mysql, 0, strlen($mysql) - 1);
+      }
+      drush_print('Folder location of apache\'s "httpd-vhosts.conf" file');
+      $httpd_conf = str_replace('\\', '/', drush_prompt(dt(''), $httpd_conf_cache, TRUE));
+      while (!file_exists($httpd_conf . '/httpd-vhosts.conf')) {
+        $httpd_conf = str_replace('\\', '/', drush_prompt('', $httpd_conf_cache, TRUE));
+      }
+      if (substr($httpd_conf, strlen($httpd_conf) - 1) == '/') {
+        $httpd_conf = substr($httpd_conf, 0, strlen($httpd_conf) - 1);
       }
       $file_proxy = drush_choice(array(
         'No',
         'Yes'
       ), dt('Use "Stage File Proxy" odule'));
-      break;
-    case 1:
-      $db_user = drush_prompt(dt('Username for the database.'), NULL, FALSE);
-      if (is_null($db_user)) {
-        $db_user = 'root';
-      }
-      $db_pass = drush_prompt(dt('Password for the database.'), NULL, FALSE, TRUE);
-      if (is_null($db_user)) {
-        $db_pass = '';
-      }
-      drush_print('Enter the directory for your mysql. This folder must contain a mysql.exe file.');
-      $mysql = str_replace('\\', '/', drush_prompt(dt(''), NULL, TRUE));
-      while (!file_exists($mysql . '/mysql.exe')) {
-        $mysql = str_replace('\\', '/', drush_prompt('', NULL, TRUE));
-      }
-      drush_print('Folder location of apache\'s "httpd-vhosts.conf" file');
-      $httpd_conf = str_replace('\\', '/', drush_prompt(dt(''), NULL, TRUE));
-      while (!file_exists($httpd_conf . '/httpd-vhosts.conf')) {
-        $httpd_conf = str_replace('\\', '/', drush_prompt('', NULL, TRUE));
-      }
+      $port = drush_prompt(dt('Port Number'), is_null($port_cache) ? 80 : $port_cache, FALSE, FALSE);
       break;
     default:
       break;
@@ -95,6 +110,7 @@ function drush_eaglecrk_config() {
   drush_cache_set('eaglecrk-git', $git, 'pantheon-persist');
   drush_cache_set('eaglecrk-httpd-conf', $httpd_conf, 'pantheon-persist');
   drush_cache_set('eaglecrk-file-proxy', $file_proxy, 'pantheon-persist');
+  drush_cache_set('eaglecrk-port', $port, 'pantheon-persist');
 }
 
 function drush_eaglecrk_show_config() {
@@ -105,6 +121,7 @@ function drush_eaglecrk_show_config() {
   $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
   $httpd_conf = drush_cache_get('eaglecrk-httpd-conf', 'pantheon-persist')->data;
   $file_proxy = drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data;
+  $port = drush_cache_get('eaglecrk-port', 'pantheon-persist')->data;
   $locals = array('Lamp', 'Wamp/Xamp', 'Other');
   $proxy = array('No', 'Yes');
 
@@ -114,6 +131,7 @@ function drush_eaglecrk_show_config() {
     drush_print("DB Username: $db_user");
     drush_print("DB Password: $db_pass");
     drush_print("Use 'Stage File Proxy': $proxy[$file_proxy]");
+    drush_print("Port: $port");
   }
   if ($local_env == 1) {
     drush_print("Mysql Location: $mysql");
@@ -129,6 +147,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
   $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
   $db_user = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
   $db_pass = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
+  $port = drush_cache_get('eaglecrk-port', 'pantheon-persist')->data;
 
   $site_uuid = terminus_get_site_uuid_by_name($site_name);
   $bucket = 'latest';
@@ -194,7 +213,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
 
       shell_exec("sudo touch /etc/apache2/sites-available/" . $sites_url . '.conf');
       shell_exec("sudo chmod 777 /etc/apache2/sites-available/" . $sites_url . '.conf');
-      $vhost = "<VirtualHost *:80>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name . '-' . $environment . "\n\t<Directory \"" . $git . '/' . $site_name . '-' . $environment . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
+      $vhost = "<VirtualHost *:$port>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name . '-' . $environment . "\n\t<Directory \"" . $git . '/' . $site_name . '-' . $environment . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
       file_put_contents('/etc/apache2/sites-available/' . $sites_url . '.conf', $vhost);
       shell_exec('sudo a2ensite ' . $sites_url . '.conf');
       shell_exec('sudo service apache2 reload');
@@ -213,7 +232,8 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       shell_exec("cd $git/$site_name-$environment && drush vset preprocess_js 0 --yes; cd $git/$site_name-$environment && drush vset preprocess_css 0 --yes; cd $git/$site_name-$environment && drush cc all");
       shell_exec("sudo chmod 444 $git/$site_name-$environment/sites/default/settings.php");
 
-      drush_print("Clone Complete. Visit http://$sites_url to view the site.");
+      shell_exec('sudo rm ' . $db_file);
+      drush_print("Clone Complete. Visit http://$sites_url" . ($port != 80 ? ":$port" : '') . " to view the site.");
       break;
 
     case 1:
@@ -282,7 +302,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
 
       $httpd_conf = drush_cache_get('eaglecrk-httpd-conf', 'pantheon-persist')->data;
       if (file_exists($httpd_conf . '/httpd-vhosts.conf')) {
-        $vhost = "\n\n<VirtualHost *:80>\n\tDocumentRoot \"$git/$site_name-$environment\"\n\tServerName $site_name-$environment\n</VirtualHost>";
+        $vhost = "\n\n<VirtualHost *:$port>\n\tDocumentRoot \"$git/$site_name-$environment\"\n\tServerName $sites_url\n</VirtualHost>";
         file_put_contents($httpd_conf . '\httpd-vhosts.conf', $vhost, FILE_APPEND);
       }
 
@@ -293,14 +313,35 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
         file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
       }
 
-      drush_print("Clone Complete. Visit http://$sites_url to view the site after restarting your apache service.");
+      drush_print("Clone Complete. Visit http://$sites_url" . ($port != 80 ? ":$port" : '') . " to view the site after restarting your apache service.");
       break;
 
     default:
-      drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+      $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+      if (is_null($db_file) || $db_file == '') {
+        drush_terminus_pantheon_site_make_backup($site_uuid, $environment);
+        drush_print('Please Wait...');
+        while (is_null($db_file) || $db_file == '') {
+          sleep(20);
+          $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+        }
+      }
+      $db_file = $git . '/' . $db_file;
+
+      $buffer_size = 4096;
+      $file = gzopen($db_file, 'rb');
+      $out_file = fopen(str_replace('.gz', '', $db_file), 'wb');
+      while (!gzeof($file)) {
+        fwrite($out_file, gzread($file, $buffer_size));
+      }
+      fclose($out_file);
+      gzclose($file);
+      unlink($db_file);
+
       $git_clone = 'git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name . '-' . $environment;
       shell_exec($git_clone);
 
+      drush_print('Database and files downloaded to ' . $git);
       break;
   }
 }
