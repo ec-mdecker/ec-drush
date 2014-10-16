@@ -27,18 +27,9 @@ function eaglecrk_drush_command() {
     'aliases' => array('ec-clear'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
-  $items['ec-test'] = array(
-    'description' => "Clones a site into local development",
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
-  );
-
   return $items;
 }
 
-function drush_eaglecrk_ec_test() {
-  $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
-  drush_print($git);
-}
 
 function drush_eaglecrk_config() {
   $db_user_cache = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
@@ -66,7 +57,7 @@ function drush_eaglecrk_config() {
     case 0:
       $db_user = drush_prompt(dt('Username for the database.'), is_null($db_user_cache) ? 'root' : $db_user_cache, FALSE);
       $db_pass = drush_prompt(dt('Password for the database.'), is_null($db_pass_cache) ? '' : $db_pass_cache, FALSE, TRUE);
-      
+
       $file_proxy = drush_choice(array(
         'No',
         'Yes'
@@ -420,7 +411,7 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
   if (is_null(drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data)) {
     drush_eaglecrk_config();
   }
-  $local_env = drush_cache_get('eaglecrk-lova-env', 'pantheon-persist')->data;
+  $local_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
   $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
   $db_user = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
   $db_pass = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
@@ -493,5 +484,22 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
 }
 
 function drush_eaglecrk_clear_terminus() {
-  shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/terminus-last-email.cache");
+  $local_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
+  switch ($local_env) {
+    case 0:
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/terminus-last-email.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-pass.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-user.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-file-proxy.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-git.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-httpd-conf.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-local-env.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-mysql.cache");
+      shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-port.cache");
+      break;
+    default:
+      drush_print('Incompatible with your environment. Please manually delete the files in $HOME/.drush/cache/pantheon-persist');
+      break;
+  }
+
 }
