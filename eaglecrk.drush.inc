@@ -22,6 +22,11 @@ function eaglecrk_drush_command() {
     'aliases' => array('ec-redb'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
+  $items['eaglecrk-clear-terminus'] = array(
+    'description' => "Remove stored variables such as configurations and login info.",
+    'aliases' => array('ec-clear'),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+  );
   $items['ec-test'] = array(
     'description' => "Clones a site into local development",
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
@@ -55,9 +60,9 @@ function drush_eaglecrk_config() {
         $db_user = 'root';
       }
       $file_proxy = drush_choice(array(
-          'No',
-          'Yes'
-        ), dt('Use "Stage File Proxy" odule'));
+        'No',
+        'Yes'
+      ), dt('Use "Stage File Proxy" odule'));
       break;
     case 1:
       $db_user = drush_prompt(dt('Username for the database.'), NULL, FALSE);
@@ -105,12 +110,12 @@ function drush_eaglecrk_show_config() {
 
   drush_print("Local Environment: $locals[$local_env]");
   drush_print("File Location: $git");
-  if($local_env == 0 || $local_env ==1){
+  if ($local_env == 0 || $local_env == 1) {
     drush_print("DB Username: $db_user");
     drush_print("DB Password: $db_pass");
     drush_print("Use 'Stage File Proxy': $proxy[$file_proxy]");
   }
-  if($local_env == 1){
+  if ($local_env == 1) {
     drush_print("Mysql Location: $mysql");
     drush_print("httpd-vhost.conf: $httpd_conf");
   }
@@ -135,8 +140,11 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
 
       $sites_url = drush_prompt('Local Url to use for this site', NULL, TRUE, FALSE);
+      $sites_url = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '-', $sites_url));
+
       if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
         $orig_url = drush_prompt(dt('Original URL of site (for Stage File Proxy)'), NULL, TRUE, FALSE);
+        $orig_url = trim($orig_url, "/\\");
       }
 
       $git_clone = 'sudo git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name . '-' . $environment;
@@ -160,6 +168,16 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       }
 
       $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+      if (is_null($db_file) || $db_file == '') {
+        drush_terminus_pantheon_site_make_backup($site_uuid, $environment);
+        drush_print('Backup Initiated. Please Wait');
+        while (is_null($db_file) || $db_file == '') {
+          sleep(15);
+          $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+        }
+      }
+
+
       shell_exec("sudo gzip -d " . $git . '/' . $db_file);
       $db_file = $git . '/' . str_replace('.gz', '', $db_file);
       drush_print('Database file downloaded and extracted.');
@@ -179,7 +197,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       $vhost = "<VirtualHost *:80>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name . '-' . $environment . "\n\t<Directory \"" . $git . '/' . $site_name . '-' . $environment . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
       file_put_contents('/etc/apache2/sites-available/' . $sites_url . '.conf', $vhost);
       shell_exec('sudo a2ensite ' . $sites_url . '.conf');
-      shell_exec('sudo service apache2 restart');
+      shell_exec('sudo service apache2 reload');
       drush_print('Hosts file and vitual host configured');
 
 
@@ -194,6 +212,8 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
 
       shell_exec("cd $git/$site_name-$environment && drush vset preprocess_js 0 --yes; cd $git/$site_name-$environment && drush vset preprocess_css 0 --yes; cd $git/$site_name-$environment && drush cc all");
       shell_exec("sudo chmod 444 $git/$site_name-$environment/sites/default/settings.php");
+
+      drush_print("Clone Complete. Visit http://$sites_url to view the site.");
       break;
 
     case 1:
@@ -201,6 +221,8 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
 
       $sites_url = drush_prompt('Local Url to use for this site', NULL, TRUE, FALSE);
+      $sites_url = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '-', $sites_url));
+
       if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
         $orig_url = drush_prompt(dt('Original URL of site (for Stage File Proxy)'), NULL, TRUE, FALSE);
       }
@@ -225,7 +247,16 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       }
 
       $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
-      $db_file = $mysql . '/' . drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
+      $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
+      if (is_null($db_file) || $db_file == '') {
+        drush_terminus_pantheon_site_make_backup($site_uuid, $environment);
+        drush_print('Please Wait...');
+        while (is_null($db_file) || $db_file == '') {
+          sleep(15);
+          $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
+        }
+      }
+      $db_file = $mysql . '/' . $db_file;
 
       $buffer_size = 4096;
       $file = gzopen($db_file, 'rb');
@@ -262,8 +293,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
         file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
       }
 
-      drush_print('Please restart your apache service');
-
+      drush_print("Clone Complete. Visit http://$sites_url to view the site after restarting your apache service.");
       break;
 
     default:
@@ -361,6 +391,7 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
   switch ($local_env) {
     case 0:
       $new_db = drush_prompt('Database to overwrite', NULL, TRUE, FALSE);
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
 
       $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
       shell_exec("sudo gzip -d " . $git . '/' . $db_file);
@@ -384,6 +415,7 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
       break;
     case 1:
       $new_db = drush_prompt('Database to overwrite', NULL, TRUE, FALSE);
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
       $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
       $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
 
@@ -417,4 +449,8 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
       drush_print('You do not have a compatible environment for this command.');
       break;
   }
+}
+
+function drush_eaglecrk_clear_terminus() {
+  shell_exec("sudo rm \$HOME/.drush/cache/pantheon-persist/terminus-last-email.cache");
 }
