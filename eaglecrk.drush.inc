@@ -30,58 +30,97 @@ function eaglecrk_drush_command() {
   return $items;
 }
 
+function drush_eaglecrk_ec_test() {
+
+}
+
 function drush_eaglecrk_config() {
-  drush_print('Enter the directory for you mysql. This folder must contain a mysql.exe file.');
-  $mysql = str_replace('\\', '/', drush_prompt(dt(''), NULL, TRUE));
-  while (!file_exists($mysql)) {
-    $mysql = drush_prompt('', NULL, TRUE);
-  }
+  $options = array('Lamp', 'WAMP/XAMP', 'Other');
+  $local_env = drush_choice($options, 'What is your local environment?');
+
   drush_print(dt('Enter the directory desired for site files.'));
   $git = str_replace('\\', '/', drush_prompt(dt(''), NULL, TRUE));
   while (!file_exists($git)) {
-    $git = drush_prompt('', NULL, TRUE);
+    $git = str_replace('\\', '/', drush_prompt('', NULL, TRUE));
   }
-  $options = array('WAMP/XAMP', 'Acquia', 'Other');
-  $local_env = drush_choice($options, 'What is your local environment?');
-  if ($local_env === 0) {
-    $db_user = drush_prompt(dt('Username for the database.'), NULL, FALSE);
-    if (is_null($db_user)) {
-      $db_user = 'root';
-    }
 
-    $db_pass = drush_prompt(dt('Password for the database.'), NULL, FALSE);
-    if (is_null($db_user)) {
-      $db_pass = '';
-    }
-    drush_cache_set('eaglecrk-db-user', $db_user, 'pantheon-persist');
-    drush_cache_set('eaglecrk-db-pass', $db_pass, 'pantheon-persist');
-
+  switch ($local_env) {
+    case 0:
+      $db_user = drush_prompt(dt('Username for the database.'), NULL, FALSE);
+      if (is_null($db_user)) {
+        $db_user = 'root';
+      }
+      $db_user = drush_prompt(dt('Password for the database.'), NULL, FALSE);
+      if (is_null($db_user)) {
+        $db_user = 'root';
+      }
+      $file_proxy = drush_choice(array(
+          'No',
+          'Yes'
+        ), dt('Use "Stage File Proxy" odule'));
+      break;
+    case 1:
+      $db_user = drush_prompt(dt('Username for the database.'), NULL, FALSE);
+      if (is_null($db_user)) {
+        $db_user = 'root';
+      }
+      $db_pass = drush_prompt(dt('Password for the database.'), NULL, FALSE, TRUE);
+      if (is_null($db_user)) {
+        $db_pass = '';
+      }
+      drush_print('Enter the directory for your mysql. This folder must contain a mysql.exe file.');
+      $mysql = str_replace('\\', '/', drush_prompt(dt(''), NULL, TRUE));
+      while (!file_exists($mysql . '/mysql.exe')) {
+        $mysql = str_replace('\\', '/', drush_prompt('', NULL, TRUE));
+      }
+      drush_print('Folder location of apache\'s "httpd-vhosts.conf" file');
+      $httpd_conf = str_replace('\\', '/', drush_prompt(dt(''), NULL, TRUE));
+      while (!file_exists($httpd_conf . '/httpd-vhosts.conf')) {
+        $httpd_conf = str_replace('\\', '/', drush_prompt('', NULL, TRUE));
+      }
+      break;
+    default:
+      break;
   }
+
+  drush_cache_set('eaglecrk-db-user', $db_user, 'pantheon-persist');
+  drush_cache_set('eaglecrk-db-pass', $db_pass, 'pantheon-persist');
   drush_cache_set('eaglecrk-local-env', $local_env, 'pantheon-persist');
   drush_cache_set('eaglecrk-mysql', $mysql, 'pantheon-persist');
   drush_cache_set('eaglecrk-git', $git, 'pantheon-persist');
-
+  drush_cache_set('eaglecrk-httpd-conf', $httpd_conf, 'pantheon-persist');
+  drush_cache_set('eaglecrk-file-proxy', $file_proxy, 'pantheon-persist');
 }
 
 function drush_eaglecrk_show_config() {
-  $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
-  $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
   $db_user = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
   $db_pass = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
-  $loacal_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
-  drush_print('Mysql Dir: ' . $mysql);
-  drush_print('File Dir: ' . $git);
-  drush_print('Username: ' . $db_user);
-  drush_print('Password: ' . $db_pass);
-  $options = array('WAMP/XAMP', 'Acquia', 'Other');
-  drush_print('Local Environment: ' . $options[$local_env]);
+  $local_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
+  $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
+  $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
+  $httpd_conf = drush_cache_get('eaglecrk-httpd-conf', 'pantheon-persist')->data;
+  $file_proxy = drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data;
+  $locals = array('Lamp', 'Wamp/Xamp', 'Other');
+  $proxy = array('No', 'Yes');
+
+  drush_print("Local Environment: $locals[$local_env]");
+  drush_print("File Location: $git");
+  if($local_env == 0 || $local_env ==1){
+    drush_print("DB Username: $db_user");
+    drush_print("DB Password: $db_pass");
+    drush_print("Use 'Stage File Proxy': $proxy[$file_proxy]");
+  }
+  if($local_env == 1){
+    drush_print("Mysql Location: $mysql");
+    drush_print("httpd-vhost.conf: $httpd_conf");
+  }
 }
 
 function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
-  if (is_null(drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data)) {
+  if (is_null(drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data)) {
     drush_eaglecrk_config();
   }
-  $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
+  $local_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
   $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
   $db_user = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
   $db_pass = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
@@ -89,78 +128,151 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
   $site_uuid = terminus_get_site_uuid_by_name($site_name);
   $bucket = 'latest';
   $element = 'database';
-  $file_name = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
 
-  if ($file_name) {
-    $buffer_size = 4096;
-    $out_file_name = str_replace('.gz', '', $file_name);
-    $file = gzopen($mysql . '/' . $file_name, 'rb');
-    $out_file = fopen($mysql . '/' . $out_file_name, 'wb');
-    while (!gzeof($file)) {
-      fwrite($out_file, gzread($file, $buffer_size));
-    }
-    fclose($out_file);
-    gzclose($file);
-    unlink($mysql . '/' . $file_name);
+  switch ($local_env) {
+    case 0:
+      $new_db = drush_prompt('Database Name', NULL, TRUE, FALSE);
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
 
-    if (!is_null($db_user)) {
-      $db_name = drush_prompt(dt('What is the name of the new database'), NULL, TRUE);
-      shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -e "create database ' . $db_name . '";');
-      shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -p ' . $db_name . ' < ' . $mysql . '/' . $out_file_name);
-      unlink($mysql . '/' . $out_file_name);
-    }
-    $git_clone = 'git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name . '-' . $environment;
-    shell_exec($git_clone);
+      $sites_url = drush_prompt('Local Url to use for this site', NULL, TRUE, FALSE);
+      if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
+        $orig_url = drush_prompt(dt('Original URL of site (for Stage File Proxy)'), NULL, TRUE, FALSE);
+      }
 
-    if (!is_null($db_user)) {
+      $git_clone = 'sudo git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name . '-' . $environment;
+      shell_exec($git_clone);
+      if (file_exists($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php')) {
+        shell_exec('sudo rm ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php');
+      }
+      shell_exec('sudo cp ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/default.settings.php ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php');
+      shell_exec('sudo chmod 777 ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php');
+
+      $add_string = "\$databases = array(\n\t'default' => array(\n\t\t'default' => array(";
+      $add_string .= "\n\t\t\t'driver' => 'mysql',\n\t\t\t'database' => '" . $new_db . "',";
+      $add_string .= "\n\t\t\t'username' => '" . $db_user . "',\n\t\t\t'password' => '" . $db_pass . "',";
+      $add_string .= "\n\t\t\t'host' => 'localhost',\n\t\t\t'prefix' => '',";
+      $add_string .= "\n\t\t\t'collation' => 'utf8_general_ci',\n\t\t)\n\t) \n);\n";
+      file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
+
+      shell_exec('sudo chmod 777 /etc/hosts');
+      if (file_exists('/etc/hosts')) {
+        file_put_contents('/etc/hosts', "\n127.0.0.1\t" . $sites_url, FILE_APPEND);
+      }
+
+      $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+      shell_exec("sudo gzip -d " . $git . '/' . $db_file);
+      $db_file = $git . '/' . str_replace('.gz', '', $db_file);
+      drush_print('Database file downloaded and extracted.');
+
+      if ($db_pass == '' || is_null($db_pass)) {
+        shell_exec('mysql -u ' . $db_user . ' -e "create database ' . $new_db . ';"');
+        shell_exec('mysql -u ' . $db_user . ' ' . $new_db . ' < ' . $db_file);
+      }
+      else {
+        shell_exec('mysql -u ' . $db_user . '-p' . $db_pass . ' -e "create database ' . $new_db . ';"');
+        shell_exec('mysql -u ' . $db_user . ' -p' . $db_pass . ' ' . $new_db . ' < ' . $db_file);
+      }
+      drush_print('Database Imported');
+
+      shell_exec("sudo touch /etc/apache2/sites-available/" . $sites_url . '.conf');
+      shell_exec("sudo chmod 777 /etc/apache2/sites-available/" . $sites_url . '.conf');
+      $vhost = "<VirtualHost *:80>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name . '-' . $environment . "\n\t<Directory \"" . $git . '/' . $site_name . '-' . $environment . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
+      file_put_contents('/etc/apache2/sites-available/' . $sites_url . '.conf', $vhost);
+      shell_exec('sudo a2ensite ' . $sites_url . '.conf');
+      shell_exec('sudo service apache2 restart');
+      drush_print('Hosts file and vitual host configured');
+
+
+      if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
+        shell_exec("sudo chmod a+w $git/$site_name-$environment/sites/default");
+        shell_exec("cd $git/$site_name-$environment && drush dl --destination=sites/default/modules stage_file_proxy -y");
+        shell_exec("cd $git/$site_name-$environment && drush en stage_file_proxy -y");
+        $add_string = "\n\$conf['stage_file_proxy_origin'] = '$orig_url';\n";
+        file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
+        drush_print('Stage File Proxy Module Enabled');
+      }
+
+      shell_exec("cd $git/$site_name-$environment && drush vset preprocess_js 0 --yes; cd $git/$site_name-$environment && drush vset preprocess_css 0 --yes; cd $git/$site_name-$environment && drush cc all");
+      shell_exec("sudo chmod 444 $git/$site_name-$environment/sites/default/settings.php");
+      break;
+
+    case 1:
+      $new_db = drush_prompt('Database Name', NULL, TRUE, FALSE);
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
+
+      $sites_url = drush_prompt('Local Url to use for this site', NULL, TRUE, FALSE);
+      if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
+        $orig_url = drush_prompt(dt('Original URL of site (for Stage File Proxy)'), NULL, TRUE, FALSE);
+      }
+
+      $git_clone = "git clone ssh://codeserver.dev.$site_uuid@codeserver.dev.$site_uuid.drush.in:2222/~/repository.git $git/$site_name-$environment";
+      shell_exec($git_clone);
+
+      $add_string = "\$databases = array(\n\t'default' => array(\n\t\t'default' => array(";
+      $add_string .= "\n\t\t\t'driver' => 'mysql',\n\t\t\t'database' => '$new_db',";
+      $add_string .= "\n\t\t\t'username' => '$db_user',\n\t\t\t'password' => '$db_pass',";
+      $add_string .= "\n\t\t\t'host' => 'localhost',\n\t\t\t'prefix' => '',";
+      $add_string .= "\n\t\t\t'collation' => 'utf8_general_ci',\n\t\t)\n\t) \n);\n";
+
       $settings_file = $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php';
       if (!file_exists($settings_file)) {
         copy($git . '/' . $site_name . '-' . $environment . '/sites/default/default.settings.php', $settings_file);
       }
 
-      $add_string = "\$databases = array(\n\t'default' => array(\n\t\t'default' => array(";
-      $add_string .= "\n\t\t\t'driver' => 'mysql',\n\t\t\t'database' => '" . $db_name . "',";
-      $add_string .= "\n\t\t\t'username' => '" . $db_user . "',\n\t\t\t'password' => '" . $db_pass . "',";
-      $add_string .= "\n\t\t\t'host' => 'localhost',\n\t\t\t'prefix' => '',";
-      $add_string .= "\n\t\t\t'collation' => 'utf8_general_ci',\n\t\t)\n\t) \n);";
-
-
       file_put_contents($settings_file, $add_string, FILE_APPEND);
-      if (file_exists('C:\Windows\System32\drivers\etc\hosts')) {
-        file_put_contents('C:\Windows\System32\drivers\etc\hosts', "\n127.0.0.1 " . $site_name . '-' . $environment, FILE_APPEND);
+      if (file_exists('C:/Windows/System32/drivers/etc/hosts')) {
+        file_put_contents('C:/Windows/System32/drivers/etc/hosts', "\n127.0.0.1\t" . $sites_url, FILE_APPEND);
       }
 
-      if (file_exists('C:\wamp\bin\apache\apache2.4.9\conf\extra\httpd-vhosts.conf')) {
-        $vhost = "\n\n<VirtualHost *:80>\n\tDocumentRoot \"" . $git . '/' . $site_name . '-' . $environment . "\"\n\tServerName " . $site_name . '-' . $environment . "\n</VirtualHost>";
-        file_put_contents('C:\wamp\bin\apache\apache2.4.9\conf\extra\httpd-vhosts.conf', $vhost, FILE_APPEND);
+      $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
+      $db_file = $mysql . '/' . drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
+
+      $buffer_size = 4096;
+      $file = gzopen($db_file, 'rb');
+      $out_file = fopen(str_replace('.gz', '', $db_file), 'wb');
+      while (!gzeof($file)) {
+        fwrite($out_file, gzread($file, $buffer_size));
       }
-    }
+      fclose($out_file);
+      gzclose($file);
+      unlink($db_file);
+      $db_file = str_replace('.gz', '', $db_file);
 
-    $files = drush_choice(array('Yes', 'No'), 'Download the files?');
-    if ($files === 0) {
-      $element = 'files';
-      $dir = $git . '/' . $site_name . '-' . $environment . '/sites/default';
-      $file_name = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $dir);;
+      if ($db_pass == '' || is_null($db_pass)) {
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -e "create database ' . $new_db . '";');
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' ' . $new_db . ' < ' . $db_file);
+      }
+      else {
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . '-p' . $db_pass . ' -e "create database ' . $new_db . '";');
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -p' . $db_pass . ' ' . $new_db . ' < ' . $db_file);
+      }
+      unlink($db_file);
 
-      $p = new PharData($dir . '/' . $file_name);
-      unlink($dir . '/' . $file_name);
-      $p->decompress();
 
-      $phar = new PharData($dir . '/' . str_replace('.gz', '', $file_name));
-      $phar->extractTo($dir);
+      $httpd_conf = drush_cache_get('eaglecrk-httpd-conf', 'pantheon-persist')->data;
+      if (file_exists($httpd_conf . '/httpd-vhosts.conf')) {
+        $vhost = "\n\n<VirtualHost *:80>\n\tDocumentRoot \"$git/$site_name-$environment\"\n\tServerName $site_name-$environment\n</VirtualHost>";
+        file_put_contents($httpd_conf . '\httpd-vhosts.conf', $vhost, FILE_APPEND);
+      }
 
-      rename($dir . '/files_' . $environment, $dir . '/files');
-    }
+      if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
+        shell_exec("cd $git/$site_name-$environment && drush dl --destination=sites/default/modules stage_file_proxy -y");
+        shell_exec("cd $git/$site_name-$environment && drush en stage_file_proxy -y");
+        $add_string = "\n\$conf['stage_file_proxy_origin'] = '$orig_url';\n";
+        file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
+      }
+
+      drush_print('Please restart your apache service');
+
+      break;
+
+    default:
+      drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+      $git_clone = 'git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name . '-' . $environment;
+      shell_exec($git_clone);
+
+      break;
   }
-  else {
-    drush_terminus_pantheon_site_make_backup($site_uuid, $environment);
-    drush_print('A backup has been started. Please wait a moment and try this command again.');
-  }
-
-}
-
-function drush_eaglecrk_ec_test() {
-
 }
 
 
@@ -233,36 +345,76 @@ function drush_eaglecrk_pantheon_site_download_backup($site_uuid = FALSE, $envir
 }
 
 
-function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'){
-  if (is_null(drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data)) {
+function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev') {
+  if (is_null(drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data)) {
     drush_eaglecrk_config();
   }
-  $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
+  $local_env = drush_cache_get('eaglecrk-lova-env', 'pantheon-persist')->data;
+  $git = drush_cache_get('eaglecrk-git', 'pantheon-persist')->data;
   $db_user = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
+  $db_pass = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
 
   $site_uuid = terminus_get_site_uuid_by_name($site_name);
   $bucket = 'latest';
   $element = 'database';
-  $file_name = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
-  if ($file_name) {
-    $buffer_size = 4096;
-    $out_file_name = str_replace('.gz', '', $file_name);
-    $file = gzopen($mysql . '/' . $file_name, 'rb');
-    $out_file = fopen($mysql . '/' . $out_file_name, 'wb');
-    while (!gzeof($file)) {
-      fwrite($out_file, gzread($file, $buffer_size));
-    }
-    fclose($out_file);
-    gzclose($file);
-    unlink($mysql . '/' . $file_name);
+
+  switch ($local_env) {
+    case 0:
+      $new_db = drush_prompt('Database to overwrite', NULL, TRUE, FALSE);
+
+      $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
+      shell_exec("sudo gzip -d " . $git . '/' . $db_file);
+
+      $db_file = $git . '/' . str_replace('.gz', '', $db_file);
+
+      if ($db_pass == '' || is_null($db_pass)) {
+        shell_exec('mysql -u ' . $db_user . ' -e "drop database ' . $new_db . ';"');
+        shell_exec('mysql -u ' . $db_user . ' -e "create database ' . $new_db . ';"');
+        shell_exec('mysql -u ' . $db_user . ' ' . $new_db . ' < ' . $db_file);
+      }
+      else {
+        shell_exec('mysql -u ' . $db_user . '-p' . $db_pass . ' -e "drop database ' . $new_db . ';"');
+        shell_exec('mysql -u ' . $db_user . '-p' . $db_pass . ' -e "create database ' . $new_db . ';"');
+        shell_exec('mysql -u ' . $db_user . ' -p' . $db_pass . ' ' . $new_db . ' < ' . $db_file);
+      }
+      if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
+        shell_exec("cd $git/$site_name-$environment && drush en stage_file_proxy -y");
+      }
+
+      break;
+    case 1:
+      $new_db = drush_prompt('Database to overwrite', NULL, TRUE, FALSE);
+      $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
+      $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
 
 
-    if (!is_null($db_user)) {
-      $db_name = drush_prompt(dt('What is the name of the database?'), NULL, TRUE);
-      shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -e "drop database ' . $db_name . '";');
-      shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -e "create database ' . $db_name . '";');
-      shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -p ' . $db_name . ' < ' . $mysql . '/' . $out_file_name);
-      unlink($mysql . '/' . $out_file_name);
-    }
+      $buffer_size = 4096;
+      $file = gzopen($db_file, 'rb');
+      $out_file = fopen(str_replace('.gz', '', $db_file), 'wb');
+      while (!gzeof($file)) {
+        fwrite($out_file, gzread($file, $buffer_size));
+      }
+      fclose($out_file);
+      gzclose($file);
+      unlink($db_file);
+      $db_file = str_replace('.gz', '', $db_file);
+
+      if ($db_pass == '' || is_null($db_pass)) {
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -e "drop database ' . $new_db . '";');
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -e "create database ' . $new_db . '";');
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' ' . $new_db . ' < ' . $db_file);
+      }
+      else {
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . '-p' . $db_pass . ' -e "drop database ' . $new_db . '";');
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . '-p' . $db_pass . ' -e "create database ' . $new_db . '";');
+        shell_exec($mysql . '/mysql.exe -u ' . $db_user . ' -p' . $db_pass . ' ' . $new_db . ' < ' . $db_file);
+      }
+      unlink($db_file);
+
+
+      break;
+    default:
+      drush_print('You do not have a compatible environment for this command.');
+      break;
   }
 }
