@@ -157,20 +157,20 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
         $orig_url = trim($orig_url, "/\\");
       }
 
-      $git_clone = 'sudo git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name . '-' . $environment;
+      $git_clone = 'sudo git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name;
       shell_exec($git_clone);
-      if (file_exists($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php')) {
-        shell_exec('sudo rm ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php');
+      if (file_exists($git . '/' . $site_name . '/sites/default/settings.php')) {
+        shell_exec('sudo rm ' . $git . '/' . $site_name . '/sites/default/settings.php');
       }
-      shell_exec('sudo cp ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/default.settings.php ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php');
-      shell_exec('sudo chmod 777 ' . $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php');
+      shell_exec('sudo cp ' . $git . '/' . $site_name . '/sites/default/default.settings.php ' . $git . '/' . $site_name . '/sites/default/settings.php');
+      shell_exec('sudo chmod 777 ' . $git . '/' . $site_name . '/sites/default/settings.php');
 
       $add_string = "\$databases = array(\n\t'default' => array(\n\t\t'default' => array(";
       $add_string .= "\n\t\t\t'driver' => 'mysql',\n\t\t\t'database' => '" . $new_db . "',";
       $add_string .= "\n\t\t\t'username' => '" . $db_user . "',\n\t\t\t'password' => '" . $db_pass . "',";
       $add_string .= "\n\t\t\t'host' => 'localhost',\n\t\t\t'prefix' => '',";
       $add_string .= "\n\t\t\t'collation' => 'utf8_general_ci',\n\t\t)\n\t) \n);\n";
-      file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
+      file_put_contents($git . '/' . $site_name . '/sites/default/settings.php', $add_string, FILE_APPEND);
 
       shell_exec('sudo chmod 777 /etc/hosts');
       if (file_exists('/etc/hosts')) {
@@ -204,7 +204,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
 
       shell_exec("sudo touch /etc/apache2/sites-available/" . $sites_url . '.conf');
       shell_exec("sudo chmod 777 /etc/apache2/sites-available/" . $sites_url . '.conf');
-      $vhost = "<VirtualHost *:$port>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name . '-' . $environment . "\n\t<Directory \"" . $git . '/' . $site_name . '-' . $environment . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
+      $vhost = "<VirtualHost *:$port>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name. "\n\t<Directory \"" . $git . '/' . $site_name . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
       file_put_contents('/etc/apache2/sites-available/' . $sites_url . '.conf', $vhost);
       shell_exec('sudo a2ensite ' . $sites_url . '.conf');
       shell_exec('sudo service apache2 reload');
@@ -212,16 +212,16 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
 
 
       if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
-        shell_exec("sudo chmod a+w $git/$site_name-$environment/sites/default");
-        shell_exec("cd $git/$site_name-$environment && drush dl --destination=sites/default/modules stage_file_proxy -y");
-        shell_exec("cd $git/$site_name-$environment && drush en stage_file_proxy -y");
+        shell_exec("sudo chmod a+w $git/$site_name/sites/default");
+        shell_exec("cd $git/$site_name && drush dl --destination=sites/default/modules stage_file_proxy -y");
+        shell_exec("cd $git/$site_name && drush en stage_file_proxy -y");
         $add_string = "\n\$conf['stage_file_proxy_origin'] = '$orig_url';\n";
-        file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
+        file_put_contents($git . '/' . $site_name . '/sites/default/settings.php', $add_string, FILE_APPEND);
         drush_print('Stage File Proxy Module Enabled');
       }
 
-      shell_exec("cd $git/$site_name-$environment && drush vset preprocess_js 0 --yes; cd $git/$site_name-$environment && drush vset preprocess_css 0 --yes; cd $git/$site_name-$environment && drush cc all");
-      shell_exec("sudo chmod 444 $git/$site_name-$environment/sites/default/settings.php");
+      shell_exec("cd $git/$site_name && drush vset preprocess_js 0 --yes; cd $git/$site_name && drush vset preprocess_css 0 --yes; cd $git/$site_name && drush cc all");
+      shell_exec("sudo chmod 444 $git/$site_name/sites/default/settings.php");
 
       shell_exec('sudo rm ' . $db_file);
       drush_print("Clone Complete. Visit http://$sites_url" . ($port != 80 ? ":$port" : '') . " to view the site.");
@@ -238,7 +238,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
         $orig_url = drush_prompt(dt('Original URL of site (for Stage File Proxy)'), NULL, TRUE, FALSE);
       }
 
-      $git_clone = "git clone ssh://codeserver.dev.$site_uuid@codeserver.dev.$site_uuid.drush.in:2222/~/repository.git $git/$site_name-$environment";
+      $git_clone = "git clone ssh://codeserver.dev.$site_uuid@codeserver.dev.$site_uuid.drush.in:2222/~/repository.git $git/$site_name";
       shell_exec($git_clone);
 
       $add_string = "\$databases = array(\n\t'default' => array(\n\t\t'default' => array(";
@@ -247,9 +247,9 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       $add_string .= "\n\t\t\t'host' => 'localhost',\n\t\t\t'prefix' => '',";
       $add_string .= "\n\t\t\t'collation' => 'utf8_general_ci',\n\t\t)\n\t) \n);\n";
 
-      $settings_file = $git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php';
+      $settings_file = $git . '/' . $site_name . '/sites/default/settings.php';
       if (!file_exists($settings_file)) {
-        copy($git . '/' . $site_name . '-' . $environment . '/sites/default/default.settings.php', $settings_file);
+        copy($git . '/' . $site_name . '/sites/default/default.settings.php', $settings_file);
       }
 
       file_put_contents($settings_file, $add_string, FILE_APPEND);
@@ -293,15 +293,15 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
 
       $httpd_conf = drush_cache_get('eaglecrk-httpd-conf', 'pantheon-persist')->data;
       if (file_exists($httpd_conf . '/httpd-vhosts.conf')) {
-        $vhost = "\n\n<VirtualHost *:$port>\n\tDocumentRoot \"$git/$site_name-$environment\"\n\tServerName $sites_url\n</VirtualHost>";
+        $vhost = "\n\n<VirtualHost *:$port>\n\tDocumentRoot \"$git/$site_name\"\n\tServerName $sites_url\n</VirtualHost>";
         file_put_contents($httpd_conf . '\httpd-vhosts.conf', $vhost, FILE_APPEND);
       }
 
       if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
-        shell_exec("cd $git/$site_name-$environment && drush dl --destination=sites/default/modules stage_file_proxy -y");
-        shell_exec("cd $git/$site_name-$environment && drush en stage_file_proxy -y");
+        shell_exec("cd $git/$site_name && drush dl --destination=sites/default/modules stage_file_proxy -y");
+        shell_exec("cd $git/$site_name && drush en stage_file_proxy -y");
         $add_string = "\n\$conf['stage_file_proxy_origin'] = '$orig_url';\n";
-        file_put_contents($git . '/' . $site_name . '-' . $environment . '/sites/default/settings.php', $add_string, FILE_APPEND);
+        file_put_contents($git . '/' . $site_name . '/sites/default/settings.php', $add_string, FILE_APPEND);
       }
 
       drush_print("Clone Complete. Visit http://$sites_url" . ($port != 80 ? ":$port" : '') . " to view the site after restarting your apache service.");
@@ -329,7 +329,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       gzclose($file);
       unlink($db_file);
 
-      $git_clone = 'git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name . '-' . $environment;
+      $git_clone = 'git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_name;
       shell_exec($git_clone);
 
       drush_print('Database and files downloaded to ' . $git);
@@ -441,7 +441,7 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
         shell_exec('mysql -u ' . $db_user . ' -p' . $db_pass . ' ' . $new_db . ' < ' . $db_file);
       }
       if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
-        shell_exec("cd $git/$site_name-$environment && drush en stage_file_proxy -y");
+        shell_exec("cd $git/$site_name && drush en stage_file_proxy -y");
       }
 
       break;
