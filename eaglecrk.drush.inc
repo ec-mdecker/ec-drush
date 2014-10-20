@@ -147,10 +147,10 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
   switch ($local_env) {
     case 0:
       $new_db = drush_prompt('Database Name', NULL, TRUE, FALSE);
-      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $new_db));
 
       $sites_url = drush_prompt('Local Url to use for this site', NULL, TRUE, FALSE);
-      $sites_url = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '-', $sites_url));
+      $sites_url = strtolower(preg_replace('/[^a-zA-Z0-9\.]/', '-', $sites_url));
 
       if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
         $orig_url = drush_prompt(dt('Original URL of site (for Stage File Proxy)'), NULL, TRUE, FALSE);
@@ -204,7 +204,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
 
       shell_exec("sudo touch /etc/apache2/sites-available/" . $sites_url . '.conf');
       shell_exec("sudo chmod 777 /etc/apache2/sites-available/" . $sites_url . '.conf');
-      $vhost = "<VirtualHost *:$port>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name. "\n\t<Directory \"" . $git . '/' . $site_name . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
+      $vhost = "<VirtualHost *:$port>\n\tServerName " . $sites_url . "\n\tDocumentRoot " . $git . '/' . $site_name . "\n\t<Directory \"" . $git . '/' . $site_name . "\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
       file_put_contents('/etc/apache2/sites-available/' . $sites_url . '.conf', $vhost);
       shell_exec('sudo a2ensite ' . $sites_url . '.conf');
       shell_exec('sudo service apache2 reload');
@@ -223,16 +223,20 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'dev') {
       shell_exec("cd $git/$site_name && drush vset preprocess_js 0 --yes; cd $git/$site_name && drush vset preprocess_css 0 --yes; cd $git/$site_name && drush cc all");
       shell_exec("sudo chmod 444 $git/$site_name/sites/default/settings.php");
 
+      shell_exec("sudo mkdir $git/$site_name/sites/default/files");
+      shell_exec("sudo chown -R www-data $git/$site_name/sites/default/files");
+      shell_exec("sudo chmod -R 0700 $git/$site_name/sites/default/files");
+
       shell_exec('sudo rm ' . $db_file);
       drush_print("Clone Complete. Visit http://$sites_url" . ($port != 80 ? ":$port" : '') . " to view the site.");
       break;
 
     case 1:
       $new_db = drush_prompt('Database Name', NULL, TRUE, FALSE);
-      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $new_db));
 
       $sites_url = drush_prompt('Local Url to use for this site', NULL, TRUE, FALSE);
-      $sites_url = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '-', $sites_url));
+      $sites_url = strtolower(preg_replace('/[^a-zA-Z0-9\.]/', '-', $sites_url));
 
       if (drush_cache_get('eaglecrk-file-proxy', 'pantheon-persist')->data) {
         $orig_url = drush_prompt(dt('Original URL of site (for Stage File Proxy)'), NULL, TRUE, FALSE);
@@ -423,7 +427,7 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
   switch ($local_env) {
     case 0:
       $new_db = drush_prompt('Database to overwrite', NULL, TRUE, FALSE);
-      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $new_db));
 
       $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $git);
       shell_exec("sudo gzip -d " . $git . '/' . $db_file);
@@ -444,10 +448,12 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'dev'
         shell_exec("cd $git/$site_name && drush en stage_file_proxy -y");
       }
 
+      shell_exec('sudo rm ' . $db_file);
+
       break;
     case 1:
       $new_db = drush_prompt('Database to overwrite', NULL, TRUE, FALSE);
-      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '_', $new_db));
+      $new_db = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $new_db));
       $mysql = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
       $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
 
