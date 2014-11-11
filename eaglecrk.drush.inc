@@ -35,10 +35,6 @@ function eaglecrk_drush_command() {
     'aliases' => array('ec-create'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
-  $items['eaglecrk-test'] = array(
-    'description' => 'Create a site with the Eagle Creek Distribution.',
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
-  );
 
   return $items;
 }
@@ -549,6 +545,8 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'live
       }
       fclose($out_file);
       gzclose($file);
+
+
       unlink($db_file);
       $db_file = str_replace('.gz', '', $db_file);
 
@@ -593,15 +591,51 @@ function drush_eaglecrk_clear_terminus() {
   $local_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
   switch ($local_env) {
     case 0:
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/terminus-last-email.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-pass.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-user.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-file-proxy.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-git.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-httpd-conf.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-local-env.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-mysql.cache");
-      shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-port.cache");
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/terminus-last-email.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/terminus-last-email.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-pass.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-pass.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-user.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-db-user.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-file-proxy.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-file-proxy.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-git.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-git.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-httpd-conf.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-httpd-conf.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-local-env.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-local-env.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-mysql.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-mysql.cache");
+      }
+
+      $file = shell_exec("[ -f \$HOME/.drush/cache/pantheon-persist/eaglecrk-port.cache ] && echo 1 || echo 0");
+      if ($file) {
+        shell_exec("rm \$HOME/.drush/cache/pantheon-persist/eaglecrk-port.cache");
+      }
+
       break;
     default:
       drush_print('Incompatible with your environment. Please manually delete the files in $HOME/.drush/cache/pantheon-persist');
@@ -671,7 +705,6 @@ function drush_eaglecrk_create_site($name = FALSE) {
     shell_exec("cd \$HOME/$name && git pull https://github.com/ec-mdecker/ec-modules.git master");
     shell_exec("cd \$HOME/$name && git push origin master");
   }
-
 
 
   drush_print('https://dashboard.getpantheon.com/sites/' . $site_uuid);
