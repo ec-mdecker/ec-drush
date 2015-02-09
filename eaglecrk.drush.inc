@@ -35,10 +35,96 @@ function eaglecrk_drush_command() {
     'aliases' => array('ec-create'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
+  $items['eaglecrk-test'] = array(
+    'description' => 'teststuff.',
+    'aliases' => array('ectest'),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+  );
+  $items['eaglecrk-test2'] = array(
+    'description' => 'teststuff.',
+    'aliases' => array('ectest2'),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+  );
 
   return $items;
 }
 
+function drush_eaglecrk_test() {
+  $file = fopen('/home/mdecker/Downloads/jcplogs - welcomeKiddieKandids.csv', 'r');
+  $out_file = fopen('/home/mdecker/Downloads/jcplogsKiddie.csv', 'w');
+  $i = 0;
+  while (!feof($file)) {
+    $line = fgetcsv($file);
+    if (is_array($line)) {
+      foreach ($line as &$item) {
+        $item = trim($item);
+      }
+
+      if (strrpos($line[0], ' ') === FALSE) {
+        $i++;
+        $ip = $line[0];
+        $country = shell_exec("wget -q -O- http://api.wipmania.com/$ip");
+        drush_print($country . ' - ' . $i);
+        $data = array('ip' => $ip, 'country' => $country, 'time' => $line[1]);
+        fputcsv($out_file, $data);
+      }
+    }
+  }
+
+  fclose($out_file);
+  fclose($file);
+}
+
+function drush_eaglecrk_test2() {
+  $file = fopen("/home/mdecker/shared/files.csv", "r");
+
+  $files = array();
+  while (!feof($file)) {
+    $files[] = fgetcsv($file)[0];
+  }
+  fclose($file);
+$i = 1;
+  $folders = array();
+
+  foreach ($files as $file) {
+    if ($file) {
+      drush_print($i);
+      $i++;
+
+      $file_name = substr($file, strpos($file, '/files/') + 7);
+      $folder = substr($file_name, 0, strrpos($file_name, '/'));
+      if(!in_array($folder, $folders)) {
+        $folders[] = $folder;
+      }
+
+//      if ($folder != '' && !file_exists("/home/mdecker/shared/eoss-files/$folder")) {
+//        mkdir("/home/mdecker/shared/eoss-files/$folder", 0777, TRUE);
+//      }
+//
+//      file_put_contents("/home/mdecker/shared/eoss-files/$file_name", fopen($file, 'r'));
+    }
+
+  }
+sort($folders);
+  var_dump($folders);
+}
+
+
+function is_url_exist($url) {
+  $ch = curl_init($url);
+  curl_setopt($ch, CURLOPT_NOBODY, TRUE);
+  curl_exec($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+  if ($code == 200) {
+    $status = TRUE;
+  }
+  else {
+    $status = FALSE;
+  }
+  curl_close($ch);
+  return $status;
+}
 
 function drush_eaglecrk_config() {
   $db_user_cache = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
@@ -197,6 +283,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
       $add_string .= "\n\t\t\t'username' => '" . $db_user . "',\n\t\t\t'password' => '" . $db_pass . "',";
       $add_string .= "\n\t\t\t'host' => 'localhost',\n\t\t\t'prefix' => '',";
       $add_string .= "\n\t\t\t'collation' => 'utf8_general_ci',\n\t\t)\n\t) \n);\n";
+      $add_string .= "\n\$base_url = $sites_url;";
       file_put_contents($git . '/' . $site_folder . '/sites/default/settings.php', $add_string, FILE_APPEND);
 
       shell_exec('sudo chmod 777 /etc/hosts');
@@ -232,7 +319,9 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
       shell_exec("sudo touch /etc/apache2/sites-available/" . $sites_url . '.conf');
       shell_exec("sudo chmod 777 /etc/apache2/sites-available/" . $sites_url . '.conf');
 
-      $vhost = "<VirtualHost *:$port>\n\tServerName $sites_url \n\tDocumentRoot $git/$site_folder\n\t<Directory \"$git/$site_folder\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
+      $vhost = "<VirtualHost *:$port>\n\tServerName $sites_url \n\tDocumentRoot $git/$site_folder\n";
+      $vhost .= "ErrorLog \"/var/www/$site_folder errorlog.log\"";
+      $vhost .= "\t<Directory \"$git/$site_folder\">\n\t\tAllowOverride All\n\t</Directory>\n</VirtualHost>";
       file_put_contents('/etc/apache2/sites-available/' . $sites_url . '.conf', $vhost);
       shell_exec('sudo a2ensite ' . $sites_url . '.conf');
       shell_exec('sudo service apache2 reload');
@@ -251,7 +340,12 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
       if (!file_exists("$git/$site_folder/sites/default/files/temp")) {
         shell_exec("mkdir $git/$site_folder/sites/default/files/temp");
       }
-      shell_exec("cd $git/$site_folder && drush vset preprocess_js 0 --yes; cd $git/$site_folder && drush vset preprocess_css 0 --yes; drush vset file_temporary_path 'sites/default/files/temp'; cd $git/$site_folder && drush cc all");
+      $modules = shell_exec('drush pml --format=var_export');
+      if (isset($modules['views_cache_bully']) && $modules['views_cache_bully']['status'] == 'Enabled') {
+        shell_exec("cd $git/$site_folder && drush vset views_cache_bully_output_lifespan -1 --yes; cd $git/$site_folder && drush vset views_cache_bully_results_lifespan -1 --yes;");
+      }
+      shell_exec("cd $git/$site_folder && drush vset preprocess_js 0 --yes; cd $git/$site_folder && drush vset preprocess_css 0 --yes; drush vset file_temporary_path 'sites/default/files/temp'; cd $git/$site_folder && drush cc all; cd $git/$site_folder && drush vset cron_safe_threshold 0");
+
       shell_exec("sudo chmod 444 $git/$site_folder/sites/default/settings.php");
 
       if (!file_exists("$git/$site_folder/sites/default/files")) {
@@ -284,6 +378,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
       $add_string .= "\n\t\t\t'username' => '$db_user',\n\t\t\t'password' => '$db_pass',";
       $add_string .= "\n\t\t\t'host' => 'localhost',\n\t\t\t'prefix' => '',";
       $add_string .= "\n\t\t\t'collation' => 'utf8_general_ci',\n\t\t)\n\t) \n);\n";
+      $add_string .= "\n\$base_url = 'http://$sites_url';";
 
       $settings_file = $git . '/' . $site_folder . '/sites/default/settings.php';
       if (!file_exists($settings_file)) {
@@ -301,7 +396,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
         drush_terminus_pantheon_site_make_backup($site_uuid, $environment);
         drush_print('Please Wait...');
         while (is_null($db_file) || $db_file == '') {
-          sleep(15);
+          sleep(25);
           $db_file = drush_eaglecrk_pantheon_site_download_backup($site_uuid, $environment, $bucket, $element, $mysql);
         }
       }
@@ -468,25 +563,16 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'live
 
   switch ($local_env) {
     case 0:
-      $drush = shell_exec('drush status');
-      $drush = explode("\n", $drush);
-      foreach ($drush as &$line) {
-        $line = explode(':', $line);
-      }
-      $status = array();
-      foreach ($drush as $line) {
-        if (isset($line[0]) && isset($line[1])) {
-          $status[trim($line[0])] = trim($line[1]);
-        }
-      }
+      $drush = shell_exec('drush status --format=json');
+      $drush = json_decode($drush, TRUE);
 
-      if (!isset($status['Database name'])) {
+      if (!isset($drush['db-name'])) {
         $new_db = drush_prompt('Database to overwrite', NULL, TRUE, FALSE);
         $new_db = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $new_db));
         $in_drupal = FALSE;
       }
       else {
-        $new_db = $status['Database name'];
+        $new_db = $drush['db-name'];
         $in_drupal = TRUE;
       }
 
@@ -508,7 +594,11 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'live
 
       shell_exec('rm ' . $db_file);
       if ($in_drupal) {
-        shell_exec('drush vset preprocess_js 0 --yes; drush vset preprocess_css 0 --yes; drush vset file_temporary_path "sites/default/files/temp"');
+        shell_exec('drush vset preprocess_js 0 --yes; drush vset preprocess_css 0 --yes; drush vset file_temporary_path "sites/default/files/temp"; drush vset cron_safe_threshold 0');
+        $modules = shell_exec('drush pml --format=var_export');
+        if (isset($modules['views_cache_bully']) && $modules['views_cache_bully']['status'] == 'Enabled') {
+          shell_exec("cd $git/$site_folder && drush vset views_cache_bully_output_lifespan -1 --yes; cd $git/$site_folder && drush vset views_cache_bully_results_lifespan -1 --yes;");
+        }
       }
 
       break;
@@ -582,7 +672,7 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'live
   }
 
   if (!isset($status['Database name'])) {
-    shell_exec('drush vset preprocess_css 0 --yes; drush vset preprocess_js 0 --yes; drush cc all');
+    shell_exec('drush vset preprocess_css 0 --yes; drush vset preprocess_js 0 --yes; drush cc all; cd $git/$site_folder && drush vset cron_safe_threshold 0');
   }
 
 }
@@ -688,44 +778,24 @@ function drush_eaglecrk_create_site($name = FALSE) {
 
   sleep(15);
   while (shell_exec("git ls-remote ssh://codeserver.dev.$site_uuid@codeserver.dev.$site_uuid.drush.in:2222/~/repository.git") == NULL) {
-    sleep(5);
+    sleep(15);
   }
 
   if (!is_null($git)) {
     $git_clone = "git clone ssh://codeserver.dev.$site_uuid@codeserver.dev.$site_uuid.drush.in:2222/~/repository.git $git/$name";
     shell_exec($git_clone);
-
+    shell_exec("drush psite-cmode $name dev 'git'");
     shell_exec("cd $git/$name && git pull https://github.com/ec-mdecker/ec-modules.git master");
     shell_exec("cd $git/$name && git push origin master");
   }
   else {
     $git_clone = "git clone ssh://codeserver.dev.$site_uuid@codeserver.dev.$site_uuid.drush.in:2222/~/repository.git \$HOME/$name";
     shell_exec($git_clone);
-
+    shell_exec("drush psite-cmode $name dev 'git'");
     shell_exec("cd \$HOME/$name && git pull https://github.com/ec-mdecker/ec-modules.git master");
     shell_exec("cd \$HOME/$name && git push origin master");
   }
 
 
   drush_print('https://dashboard.getpantheon.com/sites/' . $site_uuid);
-}
-
-function drush_eaglecrk_test() {
-//    $url = 'ssh://codeserver.dev.1b41f116-3d1a-4ef8-8afe-2057917a41c9@codeserver.dev.1b41f116-3d1a-4ef8-8afe-2057917a41c8.drush.in:2222/~/repository.git eaglecreekvermillion';
-//    $var = shell_exec('git ls-remote ' . $url . ' HEAD');
-//    var_dump($var);
-
-  $site_name = drush_prompt('Name of site', NULL, TRUE);
-
-
-  $site_uuid = FALSE;
-  while (!$site_uuid) {
-    if (is_null($site_name) || !$site_uuid) {
-      $site_name = drush_prompt('Name of site', NULL, TRUE);
-    }
-    $site_uuid = terminus_get_site_uuid_by_name($site_name);
-  }
-
-  var_dump($site_uuid);
-
 }
