@@ -15,14 +15,14 @@ function eaglecrk_drush_command() {
     'aliases' => array('ec-clone'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
-  $items['eaglecrk-show-config'] = array(
-    'description' => "Displays current configurations.",
-    'aliases' => array('ec-show-config'),
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
-  );
-  $items['eaglecrk-restore-database'] = array(
+//  $items['eaglecrk-show-config'] = array(
+//    'description' => "Displays current configurations.",
+//    'aliases' => array('ec-show-config'),
+//    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+//  );
+  $items['eaglecrk-sync-database'] = array(
     'description' => 'Download and overwrite an existing database',
-    'aliases' => array('ec-redb'),
+    'aliases' => array('ec-sync'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
   $items['eaglecrk-clear-terminus'] = array(
@@ -30,103 +30,137 @@ function eaglecrk_drush_command() {
     'aliases' => array('ec-clear'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
-  $items['eaglecrk-create-site'] = array(
-    'description' => 'Create a site with the Eagle Creek Distribution.',
-    'aliases' => array('ec-create'),
+  $items['eaglecrk-reset-site'] = array(
+    'description' => "Clears database and rebuilds the site.",
+    'aliases' => array('ec-reset'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
   );
-  $items['eaglecrk-test'] = array(
-    'description' => 'teststuff.',
-    'aliases' => array('ectest'),
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
-  );
-  $items['eaglecrk-test2'] = array(
-    'description' => 'teststuff.',
-    'aliases' => array('ectest2'),
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
-  );
-
+//  $items['eaglecrk-create-site'] = array(
+//    'description' => 'Create a site with the Eagle Creek Distribution.',
+//    'aliases' => array('ec-create'),
+//    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+//  );
   return $items;
 }
 
-function drush_eaglecrk_test() {
-  $file = fopen('/home/mdecker/Downloads/jcplogs - welcomeKiddieKandids.csv', 'r');
-  $out_file = fopen('/home/mdecker/Downloads/jcplogsKiddie.csv', 'w');
-  $i = 0;
-  while (!feof($file)) {
-    $line = fgetcsv($file);
-    if (is_array($line)) {
-      foreach ($line as &$item) {
-        $item = trim($item);
-      }
-
-      if (strrpos($line[0], ' ') === FALSE) {
-        $i++;
-        $ip = $line[0];
-        $country = shell_exec("wget -q -O- http://api.wipmania.com/$ip");
-        drush_print($country . ' - ' . $i);
-        $data = array('ip' => $ip, 'country' => $country, 'time' => $line[1]);
-        fputcsv($out_file, $data);
-      }
-    }
-  }
-
-  fclose($out_file);
-  fclose($file);
-}
-
-function drush_eaglecrk_test2() {
-  $file = fopen("/home/mdecker/shared/files.csv", "r");
-
-  $files = array();
-  while (!feof($file)) {
-    $files[] = fgetcsv($file)[0];
-  }
-  fclose($file);
-$i = 1;
-  $folders = array();
-
-  foreach ($files as $file) {
-    if ($file) {
-      drush_print($i);
-      $i++;
-
-      $file_name = substr($file, strpos($file, '/files/') + 7);
-      $folder = substr($file_name, 0, strrpos($file_name, '/'));
-      if(!in_array($folder, $folders)) {
-        $folders[] = $folder;
-      }
-
-//      if ($folder != '' && !file_exists("/home/mdecker/shared/eoss-files/$folder")) {
-//        mkdir("/home/mdecker/shared/eoss-files/$folder", 0777, TRUE);
-//      }
-//
-//      file_put_contents("/home/mdecker/shared/eoss-files/$file_name", fopen($file, 'r'));
-    }
-
-  }
-sort($folders);
-  var_dump($folders);
-}
-
-
-function is_url_exist($url) {
-  $ch = curl_init($url);
-  curl_setopt($ch, CURLOPT_NOBODY, TRUE);
-  curl_exec($ch);
-  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-  if ($code == 200) {
-    $status = TRUE;
-  }
-  else {
-    $status = FALSE;
-  }
-  curl_close($ch);
-  return $status;
-}
-
 function drush_eaglecrk_config() {
+  $settings = array();
+  $options = array('Lamp', 'WAMP/XAMP', 'Other');
+  $settings['env'] = drush_choice($options, 'What is your local environment?');
+  $settings['dir'] = str_replace('\\', '/', drush_prompt(dt('Enter the directory desired for site files.')));
+  $settings['db_name'] = drush_prompt(dt('Database Username'), 'root');
+  $settings['db_pass'] = drush_prompt(dt('Database Password'), '', FALSE);
+
+  drush_cache_set('eaglecrk-settings', $settings, 'pantheon-persist');
+}
+
+function drush_eaglecrk_clone_site($site_name = FALSE, $env = 'live') {
+  $settings = drush_cache_get('eaglecrk-settings', 'pantheon-persist')->data;
+  $site_uuid = terminus_get_site_uuid_by_name($site_name);
+  $folder = trim(drush_prompt(dt('Site Folder')));
+  $folder_array = explode('/', $folder);
+  $url = implode('.', array_reverse($folder_array)) . '.local';
+  $db = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', implode('_', $folder_array)));
+
+  $git_clone = 'git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $settings['dir'] . '/' . $folder;
+  shell_exec($git_clone);
+
+  $files_folder = $settings['dir'] . "/$folder/sites/default/files";
+  if (!file_exists($files_folder)) {
+    shell_exec("sudo mkdir $files_folder");
+  }
+  shell_exec("sudo chmod 777 -R $files_folder");
+
+  $db_file = drush_ec_download_backup($site_uuid, $env, 'latest', 'database', $settings['dir']);
+  drush_print(dt('Database Downloaded'));
+  shell_exec("gzip -d " . $settings['dir'] . "/$db_file");
+  $db_file = $settings['dir'] . '/' . str_replace('.gz', '', $db_file);
+  drush_print(dt('Database Extracted'));
+
+  if (shell_exec("mysql -u " . $settings['db_name'] . " -e 'show databases like \"$db\"'")) {
+    shell_exec("mysql -u " . $settings['db_name'] . " -e 'drop database $db'");
+  }
+
+  shell_exec("mysql -u " . $settings['db_name'] . " -e 'create database $db'");
+  drush_print(dt('Local Database Created'));
+  sleep(5);
+  shell_exec("mysql -u " . $settings['db_name'] . " $db < $db_file");
+  unlink($db_file);
+  drush_print(dt('Database Imported'));
+
+  shell_exec("sudo echo '\n127.0.0.1\t$url' >> /etc/hosts");
+  $database_settings = file_get_contents(dirname(__FILE__) . '/settings.php.inc');
+  $database_settings = str_replace('[database]', $db, $database_settings);
+  $database_settings = str_replace('[dbname]', $settings['db_name'], $database_settings);
+  $database_settings = str_replace('[dbpass]', $settings['db_pass'], $database_settings);
+  $database_settings = str_replace('[url]', 'http://' . $url, $database_settings);
+  $settings_file = $settings['dir'] . "/$folder/sites/default/settings.php";
+
+  if (!file_exists($settings_file)) {
+    shell_exec("sudo touch '$settings_file'; sudo chmod 777 $settings_file");
+  }
+  shell_exec("sudo echo '\n$database_settings' >> $settings_file");
+  shell_exec("sudo chmod 444 $settings_file");
+
+  $conf = file_get_contents(dirname(__FILE__) . '/site.conf');
+  $conf = str_replace('[dir]', $settings['dir'], $conf);
+  $conf = str_replace('[url]', $url, $conf);
+  $conf = str_replace('[folder]', $folder, $conf);
+  $conf_file = '/etc/apache2/sites-available/' . $folder_array[0] . '.conf';
+  if (!file_exists($conf_file)) {
+    shell_exec("sudo touch '$conf_file'; sudo chmod 777 $conf_file");
+  }
+  shell_exec("sudo echo '\n$conf' >> '$conf_file'");
+  shell_exec("sudo a2ensite " . $folder_array[0] . ".conf; sudo service apache2 reload");
+
+  shell_exec("cd " . $settings['dir'] . '/' . $folder . " && drush dl stage_file_proxy --destination='sites/default/modules' -y");
+  shell_exec("cd " . $settings['dir'] . '/' . $folder . " && drush vset preprocess_js 0 --yes && drush vset preprocess_css 0 --yes && drush vset file_private_path 'sites/default/files' && drush vset file_temporary_path '/tmp' && drush cc all && drush vset cron_safe_threshold 0 && drush uli");
+}
+
+function drush_eaglecrk_sync_database($site_name = FALSE, $env = 'live') {
+  shell_exec('sudo rm -rf sites/default/files/*');
+  $settings = drush_cache_get('eaglecrk-settings', 'pantheon-persist')->data;
+  $site_uuid = terminus_get_site_uuid_by_name($site_name);
+
+  $stage_file_proxy = json_decode(shell_exec('drush vget stage_file_proxy_origin --format=json'), TRUE);
+  $stage_file_proxy = $stage_file_proxy['stage_file_proxy_origin'];
+
+  $status = json_decode(shell_exec("drush status --format='json'"), TRUE);
+  $db = $status['db-name'];
+
+  $db_file = drush_ec_download_backup($site_uuid, $env, 'latest', 'database', $settings['dir']);
+  drush_print(dt('Database Downloaded'));
+  shell_exec("gzip -d " . $settings['dir'] . "/$db_file");
+  $db_file = $settings['dir'] . '/' . str_replace('.gz', '', $db_file);
+  drush_print(dt('Database Extracted'));
+
+
+  shell_exec("mysql -u " . $settings['db_name'] . " -e 'drop database $db'");
+  shell_exec("mysql -u " . $settings['db_name'] . " -e 'create database $db'");
+  sleep(5);
+  shell_exec("mysql -u " . $settings['db_name'] . " $db < $db_file");
+  unlink($db_file);
+  shell_exec("drush vset preprocess_js 0 --yes; drush vset preprocess_css 0 --yes");
+  shell_exec("drush vset file_private_path 'sites/default/files'; drush vset file_temporary_path '/tmp'");
+  shell_exec("drush cc all; drush vset cron_safe_threshold 0; drush en stage_file_proxy -y");
+  shell_exec("drush vset stage_file_proxy_origin '$stage_file_proxy'; drush uli");
+}
+
+function drush_eaglecrk_clear_terminus() {
+  shell_exec("rm \$HOME/.drush/cache/pantheon-persist/terminus-last-email.cache");
+}
+
+function drush_eaglecrk_reset_site() {
+  $settings = drush_cache_get('eaglecrk-settings', 'pantheon-persist')->data;
+  $status = json_decode(shell_exec("drush status --format='json'"), TRUE);
+  $db = $status['db-name'];
+  
+  shell_exec('mysql -u ' . $settings['db_name'] . ' -e "drop database ' . $db . '; create database ' . $db . ';"');
+  shell_exec('xdg-open ' . $status['uri'] . '/install.php');
+}
+
+
+function drush_eaglecrk_config1() {
   $db_user_cache = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
   $db_pass_cache = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
   $mysql_cache = drush_cache_get('eaglecrk-mysql', 'pantheon-persist')->data;
@@ -203,7 +237,7 @@ function drush_eaglecrk_config() {
   drush_cache_set('eaglecrk-port', $port, 'pantheon-persist');
 }
 
-function drush_eaglecrk_show_config() {
+function drush_eaglecrk_show_config1() {
   $db_user = drush_cache_get('eaglecrk-db-user', 'pantheon-persist')->data;
   $db_pass = drush_cache_get('eaglecrk-db-pass', 'pantheon-persist')->data;
   $local_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
@@ -229,7 +263,7 @@ function drush_eaglecrk_show_config() {
   }
 }
 
-function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
+function drush_eaglecrk_clone_site1($site_name = FALSE, $environment = 'live') {
   if (is_null(drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data)) {
     drush_eaglecrk_config();
   }
@@ -267,6 +301,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
 
       $git_clone = 'git clone ssh://codeserver.dev.' . $site_uuid . '@codeserver.dev.' . $site_uuid . '.drush.in:2222/~/repository.git ' . $git . '/' . $site_folder;
       shell_exec($git_clone);
+
       if (!file_exists("$git/$site_folder/sites/default/settings.php") && file_exists("$git/$site_folder/sites/default/default.settings.php")) {
         shell_exec("cp $git/$site_folder/sites/default/default.settings.php $git/$site_folder/sites/default/settings.php");
       }
@@ -474,7 +509,7 @@ function drush_eaglecrk_clone_site($site_name = FALSE, $environment = 'live') {
 /**
  * Download a backup from a site.
  */
-function drush_eaglecrk_pantheon_site_download_backup($site_uuid = FALSE, $environment = FALSE, $bucket = FALSE, $element = FALSE, $mysql = FALSE) {
+function drush_ec_download_backup($site_uuid = FALSE, $environment = FALSE, $bucket = FALSE, $element = FALSE, $mysql = FALSE) {
   $session_data = terminus_bootstrap();
   if ($session_data === FALSE) {
     return FALSE;
@@ -540,7 +575,7 @@ function drush_eaglecrk_pantheon_site_download_backup($site_uuid = FALSE, $envir
 }
 
 
-function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'live') {
+function drush_eaglecrk_restore_database1($site_name = NULL, $environment = 'live') {
   if (is_null(drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data)) {
     drush_eaglecrk_config();
   }
@@ -677,7 +712,7 @@ function drush_eaglecrk_restore_database($site_name = NULL, $environment = 'live
 
 }
 
-function drush_eaglecrk_clear_terminus() {
+function drush_eaglecrk_clear_terminus1() {
   $local_env = drush_cache_get('eaglecrk-local-env', 'pantheon-persist')->data;
   switch ($local_env) {
     case 0:
@@ -733,7 +768,7 @@ function drush_eaglecrk_clear_terminus() {
   }
 }
 
-function drush_eaglecrk_create_site($name = FALSE) {
+function drush_eaglecrk_create_site1($name = FALSE) {
 
 
   $session_data = drush_cache_get('terminus-current-session', 'pantheon');
